@@ -1,0 +1,82 @@
+Core Functionalities:
+
+1. Allow the user to upload a video or provide a link of a person (or several people) speaking.
+
+
+2. Let the user speak to the character(s) in any language using their microphone.
+
+
+3. Convert the speech to text using a multilingual speech-to-text model (e.g., OpenAI Whisper or Vosk.js).
+
+
+4. Analyze the emotion in the user’s voice or words using speech-based or text-based emotion detection (e.g., SpeechBrain or HuggingFace)
+
+
+5. Identify which character the user is addressing (if multiple are present), and maintain separate LLM-based personas for each one.
+
+
+6. Send the prompt to a local LLM like Mixtral, OpenBuddy, or MythoMax, preserving context and emotion.The conversation outputted should be based on the content/ transcript of the video and user input
+
+
+7. Convert the LLM’s text reply to natural speech using Coqui TTS or OpenVoice.
+
+
+8. Use SadTalker or Wav2Lip to generate a deepfake video response of the character speaking that response.
+
+
+9. Play back the generated lip-synced video + audio in the browser and let the user continue the conversation.
+
+
+
+Architectural Requirements:
+
+Frontend: Use React, support WebRTC for microphone, TailwindCSS for UI, WebAssembly where possible.
+
+Run as much as possible on the client side (minimal backend), using localStorage or IndexedDB for caching.
+
+Each character should have a unique:
+
+Name / backstory
+
+LLM context (prompt memory)
+
+Voice (TTS voice)
+
+Face animation profile
+
+
+For conversations with multiple characters, use a conversation orchestrator or dialogue manager that supports back-and-forth between characters and user input.
+
+
+Tech Stack Suggestions:
+
+Frontend: React.js + TailwindCSS + WebRTC + Three.js (optional for rendering heads)
+
+Speech-to-Text: Whisper.cpp (via WebAssembly), Vosk.js
+
+Emotion Detection:
+
+Speech: SpeechBrain, DeepSpectrum
+
+Text: HuggingFace (e.g., j-hartmann/emotion-english-distilroberta-base)
+
+
+LLM: Mixtral, OpenBuddy, MythoMax (via LM Studio or Ollama)
+
+TTS: Coqui TTS (multilingual), OpenVoice
+
+Deepfake Animation: SadTalker or Wav2Lip (in browser or via server)
+
+Character Management: LangGraph, Finite-State Machine, or simple orchestrator function
+
+Storage: IndexedDB, in-browser memory for temp files
+
+Optional Enhancements:
+
+Emotion-based voice modulation
+
+Avatar switching
+
+GPT agents (auto-chat between characters)
+
+Export or record conversations
