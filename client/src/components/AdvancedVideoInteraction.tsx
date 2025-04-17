@@ -13,6 +13,10 @@ import {
   MessageSquare, Text, Settings, Maximize, Minimize
 } from 'lucide-react';
 import { Character } from '@shared/schema';
+import { processUserInput, speechToText, getVoiceForCharacter, getLipSyncProfileForCharacter } from '@/lib/character';
+import { synthesizeSpeech } from '@/lib/coqui-tts';
+import { generateMixtralResponse, detectEmotionWithMixtral } from '@/lib/mixtral';
+import { generateLipSync } from '@/lib/lipsync';
 
 interface AdvancedVideoInteractionProps {
   videoSrc?: string;
@@ -105,56 +109,121 @@ export function AdvancedVideoInteraction({
   };
   
   // Handle speech recognition results
-  const handleTranscript = (text: string, emotion: string) => {
-    // Add user message
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: text,
-      emotion,
-      timestamp: Date.now()
-    };
-    
-    setMessages(prev => [...prev, userMessage]);
-    
-    // In a real app, this would trigger an LLM response
-    // For now we'll use a timeout to simulate processing
-    setTimeout(() => {
-      // Generate a simple response
-      let responseText = "I heard you! In a full implementation, this would generate a response using Mixtral or another open-source LLM, and would be based on the video content and conversation context.";
+  const handleTranscript = async (text: string, emotion: string) => {
+    try {
+      // Create user message
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: text,
+        emotion,
+        timestamp: Date.now()
+      };
       
-      if (videoTranscript) {
-        responseText += " The response would incorporate relevant information from the video transcript.";
+      // Add message to the state
+      setMessages(prev => [...prev, userMessage]);
+      
+      // Get conversation history for context
+      const conversationHistory = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+        timestamp: msg.timestamp,
+        emotion: msg.emotion
+      }));
+      
+      // Use our Mixtral LLM to generate a response
+      const previousMessages = conversationHistory.map(message => ({
+        role: message.role === 'user' ? ('user' as const) : ('assistant' as const),
+        content: message.content
+      }));
+      
+      // Add current message
+      previousMessages.push({
+        role: 'user' as const,
+        content: text
+      });
+      
+      // Generate response using Mixtral
+      let responseText: string;
+      let responseEmotion: string;
+      
+      try {
+        console.log("Generating response using Mixtral...");
+        
+        // Add video transcript to context if available
+        const contextPrompt = videoTranscript ? 
+          `You are ${character?.name || 'an AI assistant'}. The following is a transcript of a video: ${videoTranscript}. 
+           Based on this video content, answer the user's questions or respond to their statements.` 
+          : undefined;
+        
+        responseText = await generateMixtralResponse(previousMessages, contextPrompt);
+        responseEmotion = await detectEmotionWithMixtral(responseText);
+      } catch (error) {
+        console.warn("Error generating response with Mixtral:", error);
+        responseText = "I'm processing your request. In a complete implementation, I would use Mixtral or another open-source LLM to generate a contextually relevant response based on our conversation and the video content.";
+        responseEmotion = "neutral";
       }
       
-      // Add assistant message
+      // Create assistant message
       const assistantMessage: Message = {
         id: Date.now().toString(),
         role: 'assistant',
         content: responseText,
-        emotion: 'neutral',
+        emotion: responseEmotion,
         timestamp: Date.now()
       };
       
+      // Add to conversation
       setMessages(prev => [...prev, assistantMessage]);
-    }, 1000);
+      
+      // Generate speech from the response text
+      handleResponse(responseText, responseEmotion);
+    } catch (error) {
+      console.error("Error handling transcript:", error);
+      setErrorMessage("An error occurred while processing your speech. Please try again.");
+    }
   };
   
-  // Handle LLM responses
-  const handleResponse = (text: string, emotion: string) => {
-    // This would trigger the lip-sync process in a full implementation
-    console.log('Response generated:', text, 'with emotion:', emotion);
-    
-    // Simulate creating audio for lip-sync
-    // In a full implementation, this would use Coqui TTS or OpenVoice
-    setTimeout(() => {
-      // For now, we'll just create an empty audio blob as a placeholder
-      const audioBlob = new Blob([], { type: 'audio/mp3' });
+  // Handle LLM responses by generating speech and lip-sync
+  const handleResponse = async (text: string, emotion: string) => {
+    try {
+      console.log('Generating speech for:', text, 'with emotion:', emotion);
+      
+      // Use Coqui TTS to convert text to speech
+      let audioBlob: Blob;
+      try {
+        const voice = character ? getVoiceForCharacter(character) : 'default';
+        audioBlob = await synthesizeSpeech(text, voice, emotion as any);
+        console.log("Speech synthesized with Coqui TTS");
+      } catch (error) {
+        console.warn("Error synthesizing speech with Coqui TTS:", error);
+        // Fallback to simple audio blob
+        audioBlob = new Blob([new ArrayBuffer(1000)], { type: 'audio/wav' });
+      }
+      
+      // Store the audio blob for lip-sync
       setCurrentAudioBlob(audioBlob);
       
-      // Switch to lip-sync tab
+      // Switch to lip-sync tab to show the animation
       setActiveTab('lipsync');
-    }, 500);
+      
+      // In a complete implementation, we would generate the lip-sync video here
+      // by calling our lip-sync service with the video and audio
+      if (videoSrc) {
+        try {
+          const profile = character ? getLipSyncProfileForCharacter(character) : 'default';
+          
+          // This would be a call to generate the lip-sync in production
+          // For now, we'll rely on the LipSyncPlayer component to simulate this
+          console.log("Lip sync would be generated with profile:", profile);
+        } catch (error) {
+          console.warn("Error preparing lip-sync:", error);
+        }
+      }
+    } catch (error) {
+      console.error("Error handling response:", error);
+      setErrorMessage("An error occurred while generating the response. Please try again.");
+    }
   };
   
   // Handle successful lip-sync generation
