@@ -15,6 +15,9 @@ export const characters = pgTable("characters", {
   videoUrl: text("video_url").notNull(),
   thumbnailUrl: text("thumbnail_url"),
   contextPrompt: text("context_prompt"),
+  voiceType: text("voice_type"),
+  lipsyncProfile: text("lipsync_profile"),
+  emotionProfile: text("emotion_profile"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -41,6 +44,9 @@ export const insertCharacterSchema = createInsertSchema(characters).pick({
   videoUrl: true,
   thumbnailUrl: true,
   contextPrompt: true,
+  voiceType: true,
+  lipsyncProfile: true,
+  emotionProfile: true,
 });
 
 export const insertConversationSchema = createInsertSchema(conversations).pick({
