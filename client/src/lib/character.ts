@@ -12,7 +12,7 @@ export function getVoiceForCharacter(character: Character): string {
     "Raj Patel": "male"
   };
   
-  return voiceMap[character.name] || "default";
+  return voiceMap[character.name || "default"];
 }
 
 // Process user input (text or speech) and generate a response
@@ -44,16 +44,17 @@ export async function processUserInput(
     // 4. Generate AI response using compromise.js
     const responseText = await generateResponse(
       updatedHistory,
-      character.contextPrompt,
+      character.contextPrompt || undefined,
       character.name
     );
     
-    // 5. Create assistant message
+    // 5. Create assistant message and detect its emotion
+    const responseEmotion = await detectEmotion(responseText);
     const assistantMessage: Message = {
       role: 'assistant',
       content: responseText,
       timestamp: Date.now(),
-      emotion: 'neutral' // Default emotion
+      emotion: responseEmotion
     };
     
     // 6. Generate speech from text using browser's Web Speech API
