@@ -7,6 +7,7 @@ import { Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import nlp from 'compromise';
 import nlpSentences from 'compromise-sentences';
 import { detectEmotionFromText } from '@/lib/speech';
+import { getVoskSpeechService, VoskSpeechService } from '@/lib/vosk-speech';
 
 // Initialize nlp with the sentences plugin
 nlp.extend(nlpSentences);
@@ -35,12 +36,54 @@ export function SpeechEngine({
   const [error, setError] = useState<string | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const [useVosk, setUseVosk] = useState(true); // Use Vosk by default
   
-  // Refs for speech recognition and synthesis
+  // Refs for speech recognition
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const voskServiceRef = useRef<VoskSpeechService | null>(null);
+  const transcriptTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Setup speech recognition
+  // Initialize Vosk speech recognition
   useEffect(() => {
+    async function initializeVosk() {
+      try {
+        const voskService = getVoskSpeechService();
+        const initialized = await voskService.initialize();
+        
+        if (initialized) {
+          voskServiceRef.current = voskService;
+          setError(null);
+          console.log('Vosk speech recognition initialized successfully');
+        } else {
+          setError('Failed to initialize Vosk speech recognition');
+          // Fall back to browser speech recognition
+          setUseVosk(false);
+        }
+      } catch (err) {
+        console.error('Error initializing Vosk:', err);
+        setError('Error initializing speech recognition. Falling back to browser API.');
+        setUseVosk(false);
+      }
+    }
+    
+    if (useVosk) {
+      initializeVosk();
+    }
+    
+    return () => {
+      // Clean up Vosk if needed
+      if (voskServiceRef.current) {
+        voskServiceRef.current.cleanup();
+        voskServiceRef.current = null;
+      }
+    };
+  }, [useVosk]);
+  
+  // Setup browser speech recognition as fallback
+  useEffect(() => {
+    // Only use browser speech recognition if Vosk is not being used
+    if (useVosk) return;
+    
     // Check if speech recognition is available
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       setError('Speech recognition is not supported in this browser');
@@ -135,7 +178,7 @@ export function SpeechEngine({
         // Ignore errors when stopping
       }
     };
-  }, [isActive, onTranscript]);
+  }, [isActive, onTranscript, useVosk, isListening]);
   
   // Load available voices for speech synthesis
   useEffect(() => {
@@ -182,8 +225,92 @@ export function SpeechEngine({
     };
   }, [characterVoice]);
   
-  // Toggle speech recognition
-  const toggleListening = () => {
+  // Handle Vosk transcription updates
+  const handleVoskTranscription = (text: string) => {
+    setInterimTranscript(text);
+    
+    // Clear any existing timeout
+    if (transcriptTimeoutRef.current) {
+      clearTimeout(transcriptTimeoutRef.current);
+    }
+    
+    // Set a timeout to consider the transcript final after a pause in speech
+    transcriptTimeoutRef.current = setTimeout(() => {
+      if (text.trim()) {
+        setTranscript(prev => {
+          const newTranscript = prev ? `${prev} ${text}` : text;
+          
+          // Detect emotion
+          const emotion = detectEmotionFromText(text);
+          setEmotionDetected(emotion);
+          
+          // Send to parent component
+          if (onTranscript) {
+            onTranscript(text, emotion);
+          }
+          
+          return newTranscript;
+        });
+        setInterimTranscript('');
+      }
+    }, 1000); // 1 second pause to consider speech final
+  };
+  
+  // Toggle Vosk speech recognition
+  const toggleVoskListening = async () => {
+    if (!voskServiceRef.current) {
+      setError('Vosk speech recognition not available');
+      return;
+    }
+    
+    if (isListening) {
+      try {
+        const finalTranscript = await voskServiceRef.current.stop();
+        if (finalTranscript.trim()) {
+          // Process final transcript if there's any remaining
+          const emotion = detectEmotionFromText(finalTranscript);
+          setEmotionDetected(emotion);
+          
+          // Send to parent component if needed
+          if (onTranscript) {
+            onTranscript(finalTranscript, emotion);
+          }
+        }
+        setIsListening(false);
+      } catch (err) {
+        console.error('Error stopping Vosk speech recognition:', err);
+        setError('Error stopping speech recognition');
+      }
+    } else {
+      try {
+        // Before starting, make sure Vosk is initialized
+        if (!voskServiceRef.current.isReady()) {
+          await voskServiceRef.current.initialize();
+        }
+        
+        // Set up the transcription callback
+        voskServiceRef.current.onTranscription(handleVoskTranscription);
+        
+        // Start listening
+        await voskServiceRef.current.start();
+        setIsListening(true);
+        setError(null);
+        
+        // Reset states
+        setInterimTranscript('');
+        setConfidence(0);
+      } catch (err) {
+        console.error('Error starting Vosk speech recognition:', err);
+        setError('Could not start speech recognition');
+        
+        // Fall back to browser API if Vosk fails
+        setUseVosk(false);
+      }
+    }
+  };
+  
+  // Toggle browser speech recognition
+  const toggleBrowserListening = () => {
     if (!recognitionRef.current) {
       setError('Speech recognition not available');
       return;
@@ -196,10 +323,20 @@ export function SpeechEngine({
       try {
         recognitionRef.current.start();
         setError(null);
+        setIsListening(true);
       } catch (err) {
         console.error('Error starting speech recognition:', err);
         setError('Could not start speech recognition');
       }
+    }
+  };
+  
+  // Toggle speech recognition (Vosk or browser API)
+  const toggleListening = () => {
+    if (useVosk) {
+      toggleVoskListening();
+    } else {
+      toggleBrowserListening();
     }
   };
   
