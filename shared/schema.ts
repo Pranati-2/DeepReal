@@ -15,9 +15,9 @@ export const characters = pgTable("characters", {
   videoUrl: text("video_url").notNull(),
   thumbnailUrl: text("thumbnail_url"),
   contextPrompt: text("context_prompt"),
-  voiceType: text("voice_type"),
-  lipsyncProfile: text("lipsync_profile"),
-  emotionProfile: text("emotion_profile"),
+  voiceType: text("voice_type").default('default'),
+  lipsyncProfile: text("lipsync_profile").default('default'),
+  emotionProfile: text("emotion_profile").default('default'),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

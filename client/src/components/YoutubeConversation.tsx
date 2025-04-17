@@ -6,8 +6,9 @@ import { AlertCircle } from 'lucide-react';
 import { YouTubeVideoData, getYouTubeVideo } from '../lib/storage';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Separator } from './ui/separator';
-import { VideoInteraction } from './VideoInteraction';
+import { AdvancedVideoInteraction } from './AdvancedVideoInteraction';
 import YouTube from 'react-youtube';
+import { Character } from '@shared/schema';
 
 interface YoutubeConversationProps {
   videoId: string;
@@ -50,6 +51,26 @@ export function YoutubeConversation({ videoId, onClose }: YoutubeConversationPro
     
     loadVideoData();
   }, [videoId]);
+
+  // Create a character object from video data
+  const generateCharacterFromVideo = (): Character => {
+    if (!videoData) {
+      throw new Error("Video data not available");
+    }
+    
+    return {
+      id: 0, // Temporary ID
+      name: videoData.title || "YouTube Video",
+      description: videoData.summary || "This is a YouTube video character",
+      videoUrl: videoUrl || "",
+      thumbnailUrl: videoData.thumbnailUrl || null, // Using null as it's expected by the type
+      contextPrompt: videoData.transcript || null, // Using null as it's expected by the type
+      voiceType: "default",
+      lipsyncProfile: "default",
+      emotionProfile: "default",
+      createdAt: new Date(),
+    };
+  };
   
   if (isLoading) {
     return (
@@ -86,11 +107,15 @@ export function YoutubeConversation({ videoId, onClose }: YoutubeConversationPro
   }
   
   if (useAdvancedInteraction) {
-    // Use our advanced VideoInteraction component for speech recognition and lip-sync
+    // Create a character from the video data for the advanced interaction
+    const videoCharacter = generateCharacterFromVideo();
+    
+    // Use our advanced interaction component for speech recognition and lip-sync
     return (
-      <VideoInteraction
-        videoSrc={videoUrl}
+      <AdvancedVideoInteraction
+        videoSrc={videoUrl || undefined}
         videoTranscript={videoData.transcript}
+        character={videoCharacter}
         onClose={() => setUseAdvancedInteraction(false)}
       />
     );
