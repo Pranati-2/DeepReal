@@ -34,7 +34,7 @@ export interface TTSService {
  */
 export class CoquiTTS implements TTSService {
   private availableVoices: VoiceType[] = ['default', 'male', 'female', 'child'];
-  private preloadedVoices: Set<VoiceType> = new Set(['default']);
+  private preloadedVoices: Set<VoiceType> = new Set(['default' as VoiceType]);
   private audioContext: AudioContext | null = null;
   
   constructor() {
