@@ -12,11 +12,15 @@ import {
   Mic, MicOff, Video, VideoOff, RotateCcw, Download,
   MessageSquare, Text, Settings, Maximize, Minimize
 } from 'lucide-react';
-import { Character } from '@shared/schema';
+import { Character, Message as SchemaMessage } from '@shared/schema';
 import { processUserInput, speechToText, getVoiceForCharacter, getLipSyncProfileForCharacter } from '@/lib/character';
 import { synthesizeSpeech } from '@/lib/coqui-tts';
 import { generateMixtralResponse, detectEmotionWithMixtral } from '@/lib/mixtral';
 import { generateLipSync } from '@/lib/lipsync';
+
+// DeepSpectrum integration will be added here
+// This will provide advanced emotion detection from audio and video
+// For now, we'll use Mixtral for emotion detection from text
 
 interface AdvancedVideoInteractionProps {
   videoSrc?: string;
@@ -25,12 +29,9 @@ interface AdvancedVideoInteractionProps {
   onClose?: () => void;
 }
 
-interface Message {
+// Extended version of the schema Message with a unique ID
+interface Message extends SchemaMessage {
   id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  emotion?: string;
-  timestamp: number;
 }
 
 export function AdvancedVideoInteraction({
@@ -227,13 +228,39 @@ export function AdvancedVideoInteraction({
   };
   
   // Handle successful lip-sync generation
-  const handleLipSyncComplete = ({ videoBlob }: { videoBlob: Blob }) => {
-    setLipSyncVideo(videoBlob);
-    
-    // In a full implementation, this would:
-    // 1. Save the lip-synced video
-    // 2. Update the UI with the new video
-    // 3. Possibly trigger the next step in a conversation flow
+  const handleLipSyncComplete = async ({ videoBlob }: { videoBlob: Blob }) => {
+    try {
+      console.log("Lip sync complete, processing video response...");
+      setLipSyncVideo(videoBlob);
+      
+      // Create a URL for the synced video for display
+      const videoUrl = URL.createObjectURL(videoBlob);
+      
+      // In a complete implementation with DeepSpectrum, we would:
+      // 1. Analyze the user's emotional state from webcam
+      // 2. Adapt the conversation flow based on emotional feedback
+      
+      // Save the video to storage for later reference
+      if (character) {
+        try {
+          console.log("Saving generated video to storage...");
+          
+          // This would be an actual save operation in a complete implementation
+          // For example, using IndexedDB to store the video blobs
+          
+          // Switch back to conversation mode after a short delay
+          setTimeout(() => {
+            setActiveTab('conversation');
+          }, 3000);
+        } catch (error) {
+          console.warn("Error saving video:", error);
+          setErrorMessage("Video generated but couldn't be saved.");
+        }
+      }
+    } catch (error) {
+      console.error("Error handling lip sync completion:", error);
+      setErrorMessage("An error occurred while finalizing the video response.");
+    }
   };
   
   // Download conversation history
@@ -418,12 +445,59 @@ export function AdvancedVideoInteraction({
                 
                 {/* Lip sync tab */}
                 <TabsContent value="lipsync" className="flex-1 mt-0">
-                  <LipSyncPlayer
-                    videoSrc={videoSrc}
-                    audioSrc={currentAudioBlob ? URL.createObjectURL(currentAudioBlob) : undefined}
-                    character={character}
-                    onLipSyncComplete={handleLipSyncComplete}
-                  />
+                  <div className="h-full flex flex-col space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h3 className="text-sm font-medium">
+                          {character ? `${character.name}'s Response` : 'AI Response'}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Using {character?.lipsyncProfile || 'default'} lip-sync profile
+                        </p>
+                      </div>
+                      
+                      {lipSyncVideo && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            const url = URL.createObjectURL(lipSyncVideo);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `lipsync-video-${Date.now()}.webm`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Save Video
+                        </Button>
+                      )}
+                    </div>
+                      
+                    {/* Lip sync player */}
+                    <LipSyncPlayer
+                      videoSrc={videoSrc}
+                      audioSrc={currentAudioBlob ? URL.createObjectURL(currentAudioBlob) : undefined}
+                      character={character}
+                      onLipSyncComplete={handleLipSyncComplete}
+                      responsive={true}
+                    />
+                    
+                    {/* Processing indicator */}
+                    {currentAudioBlob && !lipSyncVideo && (
+                      <div className="flex flex-col items-center justify-center p-4 bg-muted/20 rounded-lg">
+                        <p className="text-sm text-center mb-2">
+                          Processing lip-sync animation using open-source technologies...
+                        </p>
+                        <div className="h-1 w-full max-w-md bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-primary animate-pulse" style={{ width: '60%' }}></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </TabsContent>
                 
                 {/* Transcript tab */}
