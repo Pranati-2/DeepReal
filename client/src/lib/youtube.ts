@@ -1,4 +1,4 @@
-import { getTranscript } from 'youtube-transcript-api';
+import { getTranscript, TranscriptResponse } from 'youtube-transcript-api';
 import nlp from 'compromise';
 
 // Extract YouTube video ID from different URL formats
@@ -50,7 +50,7 @@ export async function getYouTubeTranscript(videoId: string): Promise<string> {
     const transcript = await getTranscript(videoId);
     
     // Combine all transcript parts into a single text
-    return transcript.map(part => part.text).join(' ');
+    return transcript.map((part: TranscriptResponse) => part.text).join(' ');
   } catch (error) {
     console.error('Error fetching transcript:', error);
     throw new Error('Failed to get video transcript. The video might not have captions available.');
@@ -63,21 +63,24 @@ export function extractTopicsFromTranscript(transcript: string): string[] {
   const doc = nlp(transcript);
   
   // Extract named entities, people, and organizations
-  const people = doc.people().out('array');
-  const places = doc.places().out('array');
-  const organizations = doc.organizations().out('array');
+  const people = doc.people().out('array') as string[];
+  const places = doc.places().out('array') as string[];
+  const organizations = doc.organizations().out('array') as string[];
   
   // Extract other important nouns
-  const nouns = doc.nouns().out('array');
+  const nouns = doc.nouns().out('array') as string[];
   
   // Combine all topics and filter out duplicates
   const allTopics = [...people, ...places, ...organizations, ...nouns];
-  const uniqueTopics = [...new Set(allTopics)];
+  const uniqueTopicsSet = new Set<string>(allTopics);
+  
+  // Convert set back to array
+  const uniqueTopics = Array.from(uniqueTopicsSet);
   
   // Sort by length (longer topics are usually more specific and relevant)
   return uniqueTopics
-    .filter(topic => topic.length > 3) // Filter out very short topics
-    .sort((a, b) => b.length - a.length)
+    .filter((topic: string) => topic.length > 3) // Filter out very short topics
+    .sort((a: string, b: string) => b.length - a.length)
     .slice(0, 10); // Return top 10 topics
 }
 
@@ -87,15 +90,15 @@ export function generateVideoSummary(transcript: string): string {
   // For now, we'll use a simple approach of extracting sentences
   
   const doc = nlp(transcript);
-  const sentences = doc.sentences().out('array');
+  const sentences = doc.sentences().out('array') as string[];
   
   // Heuristic: Extract sentences that contain important topics
   const topics = extractTopicsFromTranscript(transcript);
   
   // Find sentences that mention key topics
-  const relevantSentences = sentences.filter(sentence => {
+  const relevantSentences = sentences.filter((sentence: string) => {
     const sentenceLower = sentence.toLowerCase();
-    return topics.some(topic => sentenceLower.includes(topic.toLowerCase()));
+    return topics.some((topic: string) => sentenceLower.includes(topic.toLowerCase()));
   });
   
   // Return up to 5 sentences as a summary
@@ -111,7 +114,7 @@ export function generateVideoContentResponse(
   const questionDoc = nlp(userQuestion);
   
   // Extract key nouns from the question
-  const questionTopics = questionDoc.nouns().out('array');
+  const questionTopics = questionDoc.nouns().out('array') as string[];
   
   // Extract potential question words
   const isWhatQuestion = userQuestion.toLowerCase().includes('what');
@@ -123,12 +126,12 @@ export function generateVideoContentResponse(
   
   // Find relevant parts of the transcript
   const doc = nlp(transcript);
-  const sentences = doc.sentences().out('array');
+  const sentences = doc.sentences().out('array') as string[];
   
   // Find sentences that contain question topics
-  const relevantSentences = sentences.filter(sentence => {
+  const relevantSentences = sentences.filter((sentence: string) => {
     const sentenceLower = sentence.toLowerCase();
-    return questionTopics.some(topic => sentenceLower.includes(topic.toLowerCase()));
+    return questionTopics.some((topic: string) => sentenceLower.includes(topic.toLowerCase()));
   });
   
   // If no relevant sentences found
@@ -141,13 +144,13 @@ export function generateVideoContentResponse(
     return `Based on the video, ${relevantSentences.slice(0, 2).join(' ')}`;
   } else if (isWhoQuestion) {
     // Try to find people mentioned
-    const peopleMentioned = nlp(relevantSentences.join(' ')).people().out('array');
+    const peopleMentioned = nlp(relevantSentences.join(' ')).people().out('array') as string[];
     if (peopleMentioned.length > 0) {
       return `The video mentions ${peopleMentioned.join(', ')} in relation to your question. Specifically, ${relevantSentences[0]}`;
     }
   } else if (isWhereQuestion) {
     // Try to find places mentioned
-    const placesMentioned = nlp(relevantSentences.join(' ')).places().out('array');
+    const placesMentioned = nlp(relevantSentences.join(' ')).places().out('array') as string[];
     if (placesMentioned.length > 0) {
       return `The video refers to ${placesMentioned.join(', ')} when discussing this topic. ${relevantSentences[0]}`;
     }

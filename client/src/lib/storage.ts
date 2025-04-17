@@ -2,12 +2,13 @@ import { Character, Conversation, Message } from "@shared/schema";
 
 // IndexedDB Database name and version
 const DB_NAME = 'deepreal-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Increment version to add YouTube videos store
 
 // IndexedDB Object Stores
 const CHARACTERS_STORE = 'characters';
 const CONVERSATIONS_STORE = 'conversations';
 const VIDEO_STORE = 'videos';
+const YOUTUBE_VIDEOS_STORE = 'youtubeVideos';
 
 // Open the IndexedDB database
 async function openDatabase(): Promise<IDBDatabase> {
@@ -39,6 +40,11 @@ async function openDatabase(): Promise<IDBDatabase> {
       
       if (!db.objectStoreNames.contains(VIDEO_STORE)) {
         db.createObjectStore(VIDEO_STORE, { keyPath: 'id' });
+      }
+      
+      // Add YouTube videos store if it doesn't exist
+      if (!db.objectStoreNames.contains(YOUTUBE_VIDEOS_STORE)) {
+        db.createObjectStore(YOUTUBE_VIDEOS_STORE, { keyPath: 'videoId' });
       }
     };
   });
@@ -321,4 +327,111 @@ export function saveSettings(settings: Record<string, any>): void {
 export function getSettings(): Record<string, any> {
   const settings = localStorage.getItem('deepreal-settings');
   return settings ? JSON.parse(settings) : {};
+}
+
+// YouTube Video Storage Operations
+export interface YouTubeVideoData {
+  videoId: string;
+  title: string;
+  transcript: string;
+  summary: string;
+  topics: string[];
+  thumbnailUrl?: string;
+  channelTitle?: string;
+  addedAt: Date;
+}
+
+export async function saveYouTubeVideo(videoData: Omit<YouTubeVideoData, 'addedAt'>): Promise<YouTubeVideoData> {
+  const db = await openDatabase();
+  
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([YOUTUBE_VIDEOS_STORE], 'readwrite');
+    const store = transaction.objectStore(YOUTUBE_VIDEOS_STORE);
+    
+    // Add the video data to the store
+    const data = {
+      ...videoData,
+      addedAt: new Date()
+    };
+    
+    const request = store.put(data);
+    
+    request.onsuccess = () => {
+      resolve(data);
+    };
+    
+    request.onerror = () => {
+      reject(new Error('Failed to save YouTube video data'));
+    };
+    
+    transaction.oncomplete = () => {
+      db.close();
+    };
+  });
+}
+
+export async function getYouTubeVideo(videoId: string): Promise<YouTubeVideoData | null> {
+  const db = await openDatabase();
+  
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([YOUTUBE_VIDEOS_STORE], 'readonly');
+    const store = transaction.objectStore(YOUTUBE_VIDEOS_STORE);
+    const request = store.get(videoId);
+    
+    request.onsuccess = () => {
+      resolve(request.result || null);
+    };
+    
+    request.onerror = () => {
+      reject(new Error('Failed to get YouTube video data'));
+    };
+    
+    transaction.oncomplete = () => {
+      db.close();
+    };
+  });
+}
+
+export async function getAllYouTubeVideos(): Promise<YouTubeVideoData[]> {
+  const db = await openDatabase();
+  
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([YOUTUBE_VIDEOS_STORE], 'readonly');
+    const store = transaction.objectStore(YOUTUBE_VIDEOS_STORE);
+    const request = store.getAll();
+    
+    request.onsuccess = () => {
+      resolve(request.result || []);
+    };
+    
+    request.onerror = () => {
+      reject(new Error('Failed to get all YouTube videos'));
+    };
+    
+    transaction.oncomplete = () => {
+      db.close();
+    };
+  });
+}
+
+export async function deleteYouTubeVideo(videoId: string): Promise<boolean> {
+  const db = await openDatabase();
+  
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([YOUTUBE_VIDEOS_STORE], 'readwrite');
+    const store = transaction.objectStore(YOUTUBE_VIDEOS_STORE);
+    const request = store.delete(videoId);
+    
+    request.onsuccess = () => {
+      resolve(true);
+    };
+    
+    request.onerror = () => {
+      reject(new Error('Failed to delete YouTube video'));
+    };
+    
+    transaction.oncomplete = () => {
+      db.close();
+    };
+  });
 }
