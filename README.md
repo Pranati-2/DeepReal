@@ -39,9 +39,9 @@
 ## ⚙️ Tech Stack
 
 - **Frontend**: React + TailwindCSS (or similar)
-- **Backend**: Python (Flask/FastAPI), FFmpeg, DeepFaceLab, or custom deepfake models
+- **Backend**: Python (Flask/FastAPI), FFmpeg, DeepFaceLab
 - **NLP/AI**: GPT / TTS (Text-to-Speech) / Face & Voice Cloning APIs
-- **Video Handling**: YouTube API, Streamlit or WebRTC
+- **Video Handling**: YouTube API and  WebRTC
 
 ---
 
