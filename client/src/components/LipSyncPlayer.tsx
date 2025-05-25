@@ -170,11 +170,16 @@ export function LipSyncPlayer({
   
   // Lip sync processing
   const processLipSync = async () => {
-    if (!videoRef.current || !audioRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !audioRef.current || !canvasRef.current) {
+      setError('Required video or audio elements not found');
+      return;
+    }
     
     setIsProcessing(true);
     setProgress(0);
     setError(null);
+    
+    let progressInterval: NodeJS.Timeout | undefined;
     
     try {
       // Pause playback during processing
@@ -182,12 +187,9 @@ export function LipSyncPlayer({
       audioRef.current.pause();
       setIsPlaying(false);
       
-      // In a real implementation, this would use SadTalker or Wav2Lip
-      // For now, we'll simulate the lip sync process
-      
       // Create a simulated progress indicator
       let currentProgress = 0;
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         currentProgress += 5;
         setProgress(Math.min(currentProgress, 95)); // Cap at 95% until complete
         
@@ -200,49 +202,57 @@ export function LipSyncPlayer({
       await new Promise(resolve => setTimeout(resolve, 4000));
       
       // Create a simple animation on the canvas to simulate lip-syncing
-      // In a real implementation, this would be the result from SadTalker/Wav2Lip
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
       
-      if (ctx && videoRef.current) {
-        // Set canvas dimensions to match video
-        canvas.width = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
-        
-        // Draw the video frame on the canvas
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        
-        // Simulate mouth movement (just a red ellipse for demonstration)
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height * 0.7; // Approximate mouth position
-        
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-        ctx.beginPath();
-        ctx.ellipse(centerX, centerY, 30, 15, 0, 0, 2 * Math.PI);
-        ctx.fill();
-        
-        // Create a blob from the canvas
-        canvas.toBlob((blob) => {
-          if (blob) {
-            setLipSyncResult(blob);
-            setProgress(100);
-            
-            // Notify parent component
-            if (onLipSyncComplete) {
-              onLipSyncComplete({ videoBlob: blob });
-            }
-          } else {
-            throw new Error('Failed to create video blob');
-          }
-          
-          clearInterval(progressInterval);
-        }, 'image/jpeg', 0.95);
+      if (!ctx || !videoRef.current) {
+        throw new Error('Failed to get canvas context or video element');
       }
+
+      // Set canvas dimensions to match video
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      
+      // Draw the video frame on the canvas
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      
+      // Simulate mouth movement (just a red ellipse for demonstration)
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height * 0.7; // Approximate mouth position
+      
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY, 30, 15, 0, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // Create a blob from the canvas with proper error handling
+      return new Promise<void>((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              setLipSyncResult(blob);
+              setProgress(100);
+              
+              // Notify parent component
+              if (onLipSyncComplete) {
+                onLipSyncComplete({ videoBlob: blob });
+              }
+              resolve();
+            } else {
+              reject(new Error('Failed to create video blob'));
+            }
+          },
+          'image/jpeg',
+          0.95
+        );
+      });
     } catch (err) {
       console.error('Lip sync processing error:', err);
-      setError('Failed to process lip sync. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to process lip sync. Please try again.');
+      throw err;
     } finally {
       setIsProcessing(false);
+      clearInterval(progressInterval);
     }
   };
   

@@ -6,8 +6,12 @@ import {
   insertConversationSchema 
 } from "@shared/schema";
 import { ZodError } from "zod";
+import aiRoutes from "./routes/ai";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // AI Routes
+  app.use("/api/ai", aiRoutes);
+
   // Characters API
   app.get("/api/characters", async (req, res) => {
     try {
@@ -105,7 +109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const conversationData = insertConversationSchema.parse(req.body);
       
       // Check if character exists
-      const character = await storage.getCharacter(conversationData.characterId);
+      const character = await storage.getCharacter(conversationData.characterId as number);
       if (!character) {
         return res.status(404).json({ message: "Character not found" });
       }
@@ -139,13 +143,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timestamp: Date.now()
       };
 
-      const updatedConversation = await storage.addMessageToConversation(id, message);
-      if (!updatedConversation) {
+      // Ensure the conversation exists before adding a message
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
         return res.status(404).json({ message: "Conversation not found" });
       }
 
+      // Now we know the conversation exists, so we can safely add the message
+      // Use type assertion to tell TypeScript that id is definitely a number
+      const updatedConversation = await storage.addMessageToConversation(id as number, message);
       res.json({ conversation: updatedConversation, message });
     } catch (error) {
+      console.error("Error adding message:", error);
       res.status(500).json({ message: "Failed to add message to conversation" });
     }
   });
